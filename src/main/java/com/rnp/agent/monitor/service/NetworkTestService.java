@@ -8,21 +8,23 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.LocalDateTime;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-
+@RequiredArgsConstructor
 @Service
-public  class NetworkTestService {
+public class NetworkTestService {
 
     private final NetworkTestRepository networkTestRepository;
 
-    public NetworkTestService(NetworkTestRepository networkTestRepository) {
-        this.networkTestRepository = networkTestRepository;
-    }
+    public NetworkTest ping(String host) {
+        host = host.trim();
 
-    public void ping(String host) {
+        if (host.isEmpty()) {
+            return null;
+        }
 
         try {
-
             String os = System.getProperty("os.name").toLowerCase();
             String command = os.contains("win") ? "ping -n 4 " + host : "ping -c 4 " + host;
 
@@ -34,37 +36,56 @@ public  class NetworkTestService {
             String line;
             int packetsSent = 0, packetsReceived = 0;
             double totalTime = 0;
+            int packetLossPercentage = 0;
+
+            Pattern windowsPattern = Pattern.compile("Packets: Sent = (\\d+), Received = (\\d+), Lost = (\\d+)");
+            Pattern linuxPattern = Pattern.compile("(\\d+) packets transmitted, (\\d+) received, (\\d+)% packet loss");
 
             while ((line = reader.readLine()) != null) {
-                System.out.println(line);
-
-                if (line.contains("time=")) { // Captura RTT (latência)
-                    int index = line.indexOf("time=");
-                    String timeStr = line.substring(index + 5).split(" ")[0].replaceAll("[^0-9.]", ""); // Remove "ms"
-                    totalTime += Double.parseDouble(timeStr);
-                    packetsReceived++;
+                Matcher winMatcher = windowsPattern.matcher(line);
+                if (winMatcher.find()) {
+                    packetsSent = Integer.parseInt(winMatcher.group(1));
+                    packetsReceived = Integer.parseInt(winMatcher.group(2));
+                    packetLossPercentage = Integer.parseInt(winMatcher.group(3));
+                    continue;
                 }
-                packetsSent++;
+
+                Matcher linuxMatcher = linuxPattern.matcher(line);
+                if (linuxMatcher.find()) {
+                    packetsSent = Integer.parseInt(linuxMatcher.group(1));
+                    packetsReceived = Integer.parseInt(linuxMatcher.group(2));
+                    packetLossPercentage = Integer.parseInt(linuxMatcher.group(3));
+                    continue;
+                }
+
+                if (line.contains("time=")) {
+                    int index = line.indexOf("time=");
+                    String timeStr = line.substring(index + 5).split(" ")[0].replaceAll("[^0-9.]", "");
+                    totalTime += Double.parseDouble(timeStr);
+                }
             }
 
-            int packetLoss = ((packetsSent - packetsReceived) * 100) / packetsSent;
+            if (packetsSent > 0 && packetLossPercentage == 0) {
+                packetLossPercentage = ((packetsSent - packetsReceived) * 100) / packetsSent;
+            }
+
             double avgRtt = packetsReceived > 0 ? totalTime / packetsReceived : 0;
+            String packetLossFormatted = packetLossPercentage + "%"; // Formata como string
 
-            System.out.println("\n🔹 Resultados do Ping:");
-            System.out.println("📌 Pacotes enviados: " + packetsSent);
-            System.out.println("✅ Pacotes recebidos: " + packetsReceived);
-            System.out.println("❌ Perda de pacotes: " + packetLoss + "%");
-            System.out.println("⏳ Latência média (RTT): " + avgRtt + " ms");
-
-            NetworkTest result = new NetworkTest(host, packetsSent, packetsReceived, packetLoss, avgRtt, LocalDateTime.now());
-
+            NetworkTest result = NetworkTest.builder()
+                    .host(host)
+                    .packetLoss(packetLossFormatted)
+                    .packetsReceived(packetsReceived)
+                    .packetsSent(packetsSent)
+                    .avgRtt(avgRtt)
+                    .timestamp(LocalDateTime.now())
+                    .build();
 
             networkTestRepository.save(result);
-            System.out.println("✅ Resultado do teste de rede salvo no banco de dados.");
-
+            return result;
 
         } catch (Exception e) {
-            System.err.println("Erro ao executar ping: " + e.getMessage());
+            return null;
         }
     }
 }
