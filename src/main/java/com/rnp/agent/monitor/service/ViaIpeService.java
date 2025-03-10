@@ -5,6 +5,7 @@ import com.rnp.agent.monitor.model.ViaIpeResponse;
 import com.rnp.agent.monitor.model.ViaIpeStats;
 import com.rnp.agent.monitor.repository.ViaIpeStatsRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
@@ -22,7 +23,7 @@ public class ViaIpeService {
 
     private static final String API_URL = "https://viaipe.rnp.br/api/norte";
 
-    @Transactional
+    @Transactional(noRollbackFor = {DataAccessException.class})
     public List<ViaIpeStats> buscarDadosViaIpe() {
         try {
             // Consome a API e converte para um array de ViaIpeResponse
@@ -56,7 +57,8 @@ public class ViaIpeService {
                 return statsList;
             }
         } catch (Exception e) {
-            System.err.println("Erro ao consumir API ViaIpe: " + e.getMessage());
+            System.err.println("Erro crítico: " + e.getMessage());
+            throw e;
         }
         return List.of();
     }

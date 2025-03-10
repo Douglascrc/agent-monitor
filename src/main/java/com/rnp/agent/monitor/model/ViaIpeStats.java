@@ -2,6 +2,8 @@ package com.rnp.agent.monitor.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -41,6 +43,7 @@ public class ViaIpeStats {
     @Column( name = "latencia_minima", nullable = false)
     private Double maxLoss;
 
-    @Column( name = "data_hora", nullable = false, updatable = false)
-    private LocalDateTime timestamp = LocalDateTime.now();
+    @CreationTimestamp
+    @Column( updatable = false)
+    private LocalDateTime timestamp;
 }

@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "*")
 @RestController
-@RequestMapping("/network")
+@RequestMapping("/api/")
 @RequiredArgsConstructor
 public class NetworkTestController {
 
